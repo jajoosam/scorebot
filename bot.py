@@ -29,7 +29,9 @@ class Point(Model):
 		database = db
 
 db.connect()
-# db.create_tables([Channel, User, Point])
+
+if config.SETTING_UP == True:
+	db.create_tables([Channel, User, Point])
 
 admins = config.ADMINS
 
