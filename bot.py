@@ -39,7 +39,7 @@ if sc.rtm_connect():
 		if len(event) > 0:
 			event = event[0]
 			if event["type"] == "message" and "text" in event:
-				if "feathrboard" in event["text"] and "<@" in event["text"]:
+				if config.LEADERBOARD_COMMAND in event["text"] and "<@" in event["text"]:
 					userId = re.search('<(.*)>', event["text"]).group(1).replace("@", "")
 					timestamp = event["ts"]
 					fromUser = event["user"]
@@ -49,7 +49,7 @@ if sc.rtm_connect():
 						recievedPoints = User.select().join(Point, on=Point.reciever).where(Point.date > lastSunday, User.uid == userId).count()
 						sentPoints = User.select().join(Point, on=Point.sender).where(Point.date > lastSunday, User.uid == userId).count()
 						
-						message = "<@"+userId+"> has recieved *" + str(recievedPoints) + "* feathers and sent *" + str(sentPoints) + "* feathers this week."
+						message = "<@"+userId+"> has recieved *" + str(recievedPoints) + "* " + config.POINT_TEXT + "s and sent *" + str(sentPoints) + "* " + config.POINT_TEXT + "s this week."
 						sc.api_call(
 							"chat.postEphemeral",
 							as_user=True,
@@ -61,12 +61,12 @@ if sc.rtm_connect():
 						sc.api_call(
 							"chat.postEphemeral",
 							channel=str(event["channel"]),
-							text="<@"+userId+"> has not sent or recieved any points!",
+							text="<@"+userId+"> has not sent or recieved any " + config.POINT_TEXT + "s!",
 							as_user=True,
 							user=str(fromUser)
 						)
 					
-				if "feathrboard" in event["text"] and "<@" not in event["text"]:
+				if config.LEADERBOARD_COMMAND in event["text"] and "<@" not in event["text"]:
 					timestamp = event["ts"]
 					rawUsers = User.select()
 					allUsers = []
@@ -92,10 +92,10 @@ if sc.rtm_connect():
 						thread_ts=str(timestamp),
 						as_user=True
 					)
-				if "<@" in event["text"] and (":feathrd:" in event["text"]):
+				if "<@" in event["text"] and (config.EMOJI in event["text"]):
 					toUser = re.search('<(.*)>', event["text"]).group(1).replace("@", "")
 					fromUser = event["user"]
-					points = event["text"].count(":feathrd:")
+					points = event["text"].count(config.EMOJI)
 					if str(fromUser) in admins:
 						if "(x" in event["text"]:
 							points = int(re.search('\((.*)\)', event["text"]).group(1).replace("x", ""))
@@ -109,7 +109,7 @@ if sc.rtm_connect():
 						else:
 							todayPoints = 0
 						
-						if todayPoints + points < 7 or str(fromUser) in admins or True:
+						if todayPoints + points < (config.DAILY_LIMIT + 1) or str(fromUser) in admins or config.INFINITE_POINTS:
 							todayPoints = todayPoints + points
 							try:
 								foundPoint = Point.get(Point.ts == timestamp)
@@ -142,11 +142,15 @@ if sc.rtm_connect():
 								weekPoints = User.select().join(Point, on=Point.reciever).where(Point.date > lastSunday, User.uid == reciever.uid).count()
 								totalPoints = len(reciever.recieved_points)
 								
+								if config.INFINITE_POINTS:
+									fromUserText = "You gave *" + str(points) + "* " + config.POINT_TEXT + "" + ("s" if points > 1 else "") + " to <@" + str(toUser) + ">!"
+								else:
+									fromUserText = "You gave *" + str(points) + "* " + config.POINT_TEXT + "" + ("s" if points > 1 else "") + " to <@" + str(toUser) + ">! You have *" + str(config.DAILY_LIMIT - todayPoints) + "* " + config.POINT_TEXT + "" + ("s" if (config.DAILY_LIMIT - todayPoints) > 1 else "") + " left today."
+								
 								sc.api_call(
 									"chat.postEphemeral",
 									channel=str(channelId),
-# 									text="Added *" + str(points) + "* feather" + ("s" if points > 1 else "") + " to <@" + str(toUser) + ">'s cap! You have *" + str(6 - todayPoints) + "* feather" + ("s" if (6 - todayPoints) > 1 else "") + " left today.",
-									text="Added *" + str(points) + "* feather" + ("s" if points > 1 else "") + " to <@" + str(toUser) + ">'s cap! You have infinite feathers left today.",
+									text=fromUserText,
 									as_user=True,
 									user=str(fromUser)
 								)
@@ -154,16 +158,16 @@ if sc.rtm_connect():
 								sc.api_call(
 									"chat.postEphemeral",
 									channel=str(channelId),
-									text="<@" + str(fromUser) + "> added *" + str(points) + "* feather" + ("s" if points > 1 else "") + " to your cap! You have *" + str(weekPoints) + "* feather" + ("s" if weekPoints > 1 else "") + " this week, and *" + str(totalPoints) + "* feather" + ("s" if totalPoints > 1 else "") + " in total.",
+									text="<@" + str(fromUser) + "> gave you *" + str(points) + "* " + config.POINT_TEXT + "" + ("s" if points > 1 else "") + "! You have *" + str(weekPoints) + "* " + config.POINT_TEXT + "" + ("s" if weekPoints > 1 else "") + " this week, and *" + str(totalPoints) + "* " + config.POINT_TEXT + "" + ("s" if totalPoints > 1 else "") + " in total.",
 									as_user=True,
 									user=str(toUser)
 								)
 						else:
-							if todayPoints == 6:
+							if todayPoints == config.DAILY_LIMIT:
 								sc.api_call(
 									"chat.postEphemeral",
 									channel=str(channelId),
-									text="Sorry, but you can only give *6* :feathrd: per day.",
+									text="Sorry, but you can only give *" + str(config.DAILY_LIMIT) + "* " + config.EMOJI + " per day.",
 									as_user=True,
 									user=str(fromUser)
 								)
@@ -171,7 +175,7 @@ if sc.rtm_connect():
 								sc.api_call(
 									"chat.postEphemeral",
 									channel=str(channelId),
-									text="Sorry, but you can only give 6 :feathrd: per day. You have *" + str(6 - todayPoints) + "* :feathrd: left today.",
+									text="Sorry, but you can only give " + (config.DAILY_LIMIT) + " " + config.EMOJI + " per day. You have *" + str(config.DAILY_LIMIT - todayPoints) + "* " + config.EMOJI + " left today.",
 									as_user=True,
 									user=str(fromUser)
 								)
